@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>决策树搭建工具</title>
+    <style>
+        * {
+            user-select: none;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .app-container {
+            display: flex;
+            gap: 20px;
+            height: 100%;
+            background: #fff;
+            border-radius: 24px;
+            box-shadow: 0 12px 28px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        /* 左侧组件库 */
+        .component-panel {
+            width: 260px;
+            background: #f8f9fc;
+            border-right: 1px solid #e9ecef;
+            display: flex;
+            flex-direction: column;
+            padding: 20px 12px;
+            gap: 24px;
+            overflow-y: auto;
+        }
+
+        .panel-title {
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: #2c3e66;
+            margin-bottom: 12px;
+            border-left: 4px solid #ff9f4a;
+            padding-left: 12px;
+        }
+
+        .drag-group {
+            background: white;
+            border-radius: 20px;
+            padding: 12px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+
+        .drag-item {
+            background: linear-gradient(135deg, #ffffff 0%, #f5f7ff 100%);
+            border: 1.5px solid #e2e8f0;
+            border-radius: 32px;
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            cursor: grab;
+            transition: all 0.2s ease;
+            font-weight: 500;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .drag-item:active { cursor: grabbing; }
+        .drag-item:hover {
+            background: #fff6ea;
+            border-color: #ffb347;
+            transform: translateX(4px);
+        }
+        .drag-icon { font-size: 1.3rem; }
+        .badge-condition {
+            background: #e9f0ff;
+            color: #2c6bdb;
+            font-size: 0.7rem;
+            border-radius: 20px;
+            padding: 2px 8px;
+            margin-left: auto;
+        }
+        .badge-result {
+            background: #e6f7e6;
+            color: #2e7d32;
+        }
+
+        /* 右侧画布区 */
+        .canvas-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            background: #fefefe;
+        }
+
+        .toolbar {
+            padding: 12px 20px;
+            background: white;
+            border-bottom: 1px solid #eef2f6;
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+        }
+        button {
+            background: #f1f5f9;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 40px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            color: #1e293b;
+            font-size: 0.85rem;
+        }
+        button.primary {
+            background: #ff9f4a;
+            color: white;
+            box-shadow: 0 2px 5px rgba(255,159,74,0.3);
+        }
+        button:hover {
+            background: #e2e8f0;
+            transform: scale(0.96);
+        }
+        button.primary:hover {
+            background: #f6891f;
+        }
+        .validation-message {
+            background: #fef2e0;
+            border-radius: 32px;
+            padding: 6px 16px;
+            font-size: 0.8rem;
+            color: #c25d00;
+        }
+        .info-text {
+            font-size: 0.7rem;
+            padding: 6px 16px;
+            color: #6c757d;
+            background: #fafbfc;
+            border-top: 1px solid #edf2f7;
+        }
+        kbd {
+            background: #eee;
+            border-radius: 4px;
+            padding: 2px 5px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <!-- 左侧拖拽组件库 -->
+    <div class="component-panel">
+        <div>
+            <div class="panel-title">🧩 拖拽组件</div>
+            <div class="drag-group">
+                <div class="drag-item" draggable="true" data-type="condition" data-text="是否健康">
+                    <span class="drag-icon">🏥</span> 是否健康 <span class="badge-condition">判断节点</span>
+                </div>
+                <div class="drag-item" draggable="true" data-type="condition" data-text="性格亲人">
+                    <span class="drag-icon">😺</span> 性格亲人 <span class="badge-condition">判断节点</span>
+                </div>
+                <div class="drag-item" draggable="true" data-type="condition" data-text="外貌优势">
+                    <span class="drag-icon">✨</span> 外貌优势 <span class="badge-condition">判断节点</span>
+                </div>
+                <div class="drag-item" draggable="true" data-type="result" data-text="展出">
+                    <span class="drag-icon">🏆</span> 展出 <span class="badge-result">结果节点</span>
+                </div>
+                <div class="drag-item" draggable="true" data-type="result" data-text="暂不展出">
+                    <span class="drag-icon">⏸️</span> 暂不展出 <span class="badge-result">结果节点</span>
+                </div>
+            </div>
+            <div class="panel-title" style="margin-top: 8px;">💡 操作指南</div>
+            <div style="font-size:0.75rem; background:#fff2e0; border-radius: 20px; padding: 12px;">
+                • 拖拽组件 → 
+				画布空白区添加节点<br>
+                • 点击节点底部橙色圆点 → 拖拽连线<br>
+                             • 拖拽节点 → 移动位置<br>
+				• 单击节点/连线 → 按 <kbd>Delete</kbd> 删除<br>
+                • 右键点击节点/连线 → 快速删除<br>
+           
+            </div>
+        </div>
+    </div>
+
+    <!-- 画布主体 -->
+    <div class="canvas-area">
+        <div class="toolbar">
+            <div class="btn-group">
+                <button id="btnSave" class="primary">💾 保存作品 (.json)</button>
+                <button id="btnLoad">📂 加载本地作品</button>
+                <button id="btnValidate">🔍 校验逻辑完整性</button>
+            </div>
+            <div id="validateTip" class="validation-message">✨ 空白画布，从左侧拖拽开始搭建</div>
+        </div>
+        <canvas id="treeCanvas" width="1000" height="600"></canvas>
+        <div class="info-text">
+            🖱️ 连线为直线，分支标签在连线时填写。决策节点至少2条分支，结果节点无出边。
+            选中元素后按 <kbd>Delete</kbd> 删除 / 右键快速删除。
+        </div>
+    </div>
+</div>
+
+<script>
+    (function(){
+        // ---------- 数据结构 ----------
+        let nodes = [];      // { id, x, y, text, type, width, height }
+        let edges = [];      // { id, source, target, label }
+        let nextId = 10;
+
+        // 交互状态
+        let selectedNodeId = null;
+        let selectedEdgeId = null;
+        let isDraggingNode = false;
+        let dragTargetId = null;
+        let dragStartX = 0, dragStartY = 0;
+
+        // 连线拖拽状态
+        let isLinking = false;
+        let linkSourceId = null;
+        let tempLinkEndX = 0, tempLinkEndY = 0;
+
+        const NODE_W = 120;
+        const NODE_H = 40;
+        const PORT_RADIUS = 8;   // 底部端口半径
+
+        const canvas = document.getElementById('treeCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 尺寸自适应
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            const rect = container.getBoundingClientRect();
+            canvas.width = rect.width - 32;
+            canvas.height = rect.height - 100;
+            canvas.style.width = `${canvas.width}px`;
+            canvas.style.height = `${canvas.height}px`;
+            redraw();
+        }
+        window.addEventListener('resize', () => resizeCanvas());
+
+        // 坐标转换 (canvas 真实像素坐标)
+        function getCanvasCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            let clientX, clientY;
+            if (e.touches) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+            let canvasX = (clientX - rect.left) * scaleX;
+            let canvasY = (clientY - rect.top) * scaleY;
+            canvasX = Math.min(Math.max(0, canvasX), canvas.width);
+            canvasY = Math.min(Math.max(0, canvasY), canvas.height);
+            return { x: canvasX, y: canvasY };
+        }
+
+        // 查找节点（矩形）
+        function findNodeUnderPoint(px, py) {
+            for(let i=nodes.length-1; i>=0; i--) {
+                const n = nodes[i];
+                if(px >= n.x && px <= n.x+NODE_W && py >= n.y && py <= n.y+NODE_H) return n;
+            }
+            return null;
+        }
+        // 是否点击到底部端口（连线起点）
+        function isHitPort(node, px, py) {
+            const portX = node.x + NODE_W/2;
+            const portY = node.y + NODE_H;
+            const dx = px - portX;
+            const dy = py - portY;
+            return Math.hypot(dx, dy) <= PORT_RADIUS + 5;
+        }
+        // 查找边（基于点到直线距离）
+        function findEdgeUnderPoint(px, py) {
+            for(let edge of edges) {
+                const fromNode = nodes.find(n => n.id === edge.source);
+                const toNode = nodes.find(n => n.id === edge.target);
+                if(!fromNode || !toNode) continue;
+                const fromX = fromNode.x + NODE_W/2;
+                const fromY = fromNode.y + NODE_H;
+                const toX = toNode.x + NODE_W/2;
+                const toY = toNode.y + NODE_H;
+                const dist = pointToSegmentDistance(px, py, fromX, fromY, toX, toY);
+                if(dist < 8) return edge;
+            }
+            return null;
+        }
+        function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+            const A = px - x1;
+            const B = py - y1;
+            const C = x2 - x1;
+            const D = y2 - y1;
+            const dot = A * C + B * D;
+            const len2 = C * C + D * D;
+            if(len2 === 0) return Math.hypot(px-x1, py-y1);
+            let t = dot / len2;
+            t = Math.max(0, Math.min(1, t));
+            const projX = x1 + t * C;
+            const projY = y1 + t * D;
+            return Math.hypot(px - projX, py - projY);
+        }
+
+        // 添加节点
+        function addNode(x, y, text, type) {
+            const id = nextId++;
+            nodes.push({
+                id, x: x - NODE_W/2, y: y - NODE_H/2, text, type,
+                width: NODE_W, height: NODE_H
+            });
+            redraw();
+            return id;
+        }
+
+        // 添加连线 (直线)
+        function addEdge(sourceId, targetId, label = "分支") {
+            if(sourceId === targetId) return false;
+            const exists = edges.some(e => e.source === sourceId && e.target === targetId);
+            if(exists) return false;
+            const srcNode = nodes.find(n => n.id === sourceId);
+            const tarNode = nodes.find(n => n.id === targetId);
+            if(!srcNode || !tarNode) return false;
+            if(srcNode.type === 'result') {
+                alert("结果节点不能作为判断分支源！");
+                return false;
+            }
+            edges.push({ id: nextId++, source: sourceId, target: targetId, label: label.trim() });
+            redraw();
+            return true;
+        }
+
+        function deleteNodeById(nodeId) {
+            const idx = nodes.findIndex(n => n.id === nodeId);
+            if(idx !== -1) nodes.splice(idx,1);
+            edges = edges.filter(e => e.source !== nodeId && e.target !== nodeId);
+            if(selectedNodeId === nodeId) selectedNodeId = null;
+            redraw();
+        }
+        function deleteEdgeById(edgeId) {
+            edges = edges.filter(e => e.id !== edgeId);
+            if(selectedEdgeId === edgeId) selectedEdgeId = null;
+            redraw();
+        }
+
+        function moveNode(nodeId, deltaX, deltaY) {
+            const node = nodes.find(n => n.id === nodeId);
+            if(node) {
+                node.x += deltaX;
+                node.y += deltaY;
+                node.x = Math.min(Math.max(0, node.x), canvas.width - NODE_W);
+                node.y = Math.min(Math.max(0, node.y), canvas.height - NODE_H);
+                redraw();
+            }
+        }
+
+        // 绘制箭头 (直线方向)
+        function drawArrowhead(ctx, fromX, fromY, toX, toY) {
+            const angle = Math.atan2(toY - fromY, toX - fromX);
+            const arrowSize = 10;
+            const aX = toX - arrowSize * 0.6 * Math.cos(angle - Math.PI/6);
+            const aY = toY - arrowSize * 0.6 * Math.sin(angle - Math.PI/6);
+            const bX = toX - arrowSize * 0.6 * Math.cos(angle + Math.PI/6);
+            const bY = toY - arrowSize * 0.6 * Math.sin(angle + Math.PI/6);
+            ctx.fillStyle = "#8ba0bc";
+            ctx.beginPath();
+            ctx.moveTo(toX, toY);
+            ctx.lineTo(aX, aY);
+            ctx.lineTo(bX, bY);
+            ctx.fill();
+        }
+
+        // 核心重绘 (直线连线)
+        function redraw() {
+            if(!ctx) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 画网格背景 (浅色)
+            ctx.save();
+            ctx.strokeStyle = "#e9ecef";
+            ctx.lineWidth = 0.5;
+            for(let i = 0; i < canvas.width; i += 25) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, canvas.height);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(canvas.width, i);
+                ctx.stroke();
+            }
+            
+            // 1. 绘制所有连线 (直线)
+            for(let edge of edges) {
+                const fromNode = nodes.find(n => n.id === edge.source);
+                const toNode = nodes.find(n => n.id === edge.target);
+                if(!fromNode || !toNode) continue;
+                const startX = fromNode.x + NODE_W/2;
+                const startY = fromNode.y + NODE_H;
+                const endX = toNode.x + NODE_W/2;
+                const endY = toNode.y + NODE_H;
+                
+                // 直线
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(endX, endY);
+                ctx.strokeStyle = selectedEdgeId === edge.id ? '#f39c12' : '#8ba0bc';
+                ctx.lineWidth = selectedEdgeId === edge.id ? 3 : 2;
+                ctx.stroke();
+                
+                // 绘制箭头 (基于直线方向)
+                drawArrowhead(ctx, startX, startY, endX, endY);
+                
+                // 绘制分支标签 (靠近中点稍微偏移)
+                const midX = (startX + endX) / 2;
+                const midY = (startY + endY) / 2 - 10;
+                ctx.font = "12px 'Segoe UI'";
+                const textWidth = ctx.measureText(edge.label).width;
+                ctx.fillStyle = "#fff6e5";
+                ctx.fillRect(midX - textWidth/2 - 4, midY - 8, textWidth + 8, 16);
+                ctx.fillStyle = "#c26400";
+                ctx.fillText(edge.label, midX - textWidth/2, midY);
+            }
+            
+            // 2. 绘制所有节点
+            for(let node of nodes) {
+                // 圆角矩形背景
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = node.type === 'condition' ? '#FFF7E8' : '#E9F7E1';
+                ctx.strokeStyle = (selectedNodeId === node.id) ? '#ff9f4a' : '#d4dcec';
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.roundRect(node.x, node.y, NODE_W, NODE_H, 12);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = '#1f2a44';
+                ctx.font = "bold 14px 'Segoe UI'";
+                ctx.fillText(node.text, node.x+12, node.y+26);
+                
+                // 底部连接端口 (橙色圆点)
+                const portX = node.x + NODE_W/2;
+                const portY = node.y + NODE_H;
+                ctx.beginPath();
+                ctx.arc(portX, portY, PORT_RADIUS, 0, 2*Math.PI);
+                ctx.fillStyle = "#ffb347";
+                ctx.fill();
+                ctx.fillStyle = "white";
+                ctx.beginPath();
+                ctx.arc(portX, portY, 3, 0, 2*Math.PI);
+                ctx.fill();
+            }
+            
+            // 3. 绘制临时连线 (直线预览)
+            if(isLinking && linkSourceId !== null) {
+                const srcNode = nodes.find(n => n.id === linkSourceId);
+                if(srcNode) {
+                    const startX = srcNode.x + NODE_W/2;
+                    const startY = srcNode.y + NODE_H;
+                    ctx.beginPath();
+                    ctx.moveTo(startX, startY);
+                    ctx.lineTo(tempLinkEndX, tempLinkEndY);
+                    ctx.setLineDash([5, 5]);
+                    ctx.strokeStyle = '#f39c12';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+            ctx.restore();
+        }
+
+        // 校验决策树完整性 (分支缺失/孤立节点)
+        function validateTree() {
+            let warnings = [];
+            for(let node of nodes) {
+                if(node.type === 'condition') {
+                    const outEdges = edges.filter(e => e.source === node.id);
+                    if(outEdges.length < 2) {
+                        warnings.push(`❌ 决策节点“${node.text}” 分支不足 (当前${outEdges.length}条，至少2条连线)`);
+                    }
+                } else if(node.type === 'result') {
+                    const outEdges = edges.filter(e => e.source === node.id);
+                    if(outEdges.length > 0) {
+                        warnings.push(`⚠️ 结果节点“${node.text}”不应有出边，请删除多余连线`);
+                    }
+                }
+            }
+            // 孤立/无入边检查
+            const hasIncoming = new Set();
+            edges.forEach(e => hasIncoming.add(e.target));
+            for(let node of nodes) {
+                if(!hasIncoming.has(node.id) && node.type !== 'result') {
+                    const outEdges = edges.filter(e=>e.source === node.id);
+                    if(outEdges.length === 0) warnings.push(`⚠️ 节点“${node.text}”既无输入也无输出，孤立节点`);
+                }
+                if(node.type === 'result' && !hasIncoming.has(node.id) && nodes.length > 0) {
+                    warnings.push(`📌 结果节点“${node.text}”未连接到任何判断分支`);
+                }
+            }
+            const roots = nodes.filter(n => !edges.some(e => e.target === n.id));
+            if(roots.length === 0 && nodes.length>0) warnings.push(`⚠️ 未发现根节点(无父节点)，请确保决策树有起点。`);
+            if(roots.length > 1) warnings.push(`🔁 存在多个根节点，建议单一根节点。`);
+            
+            const tipDiv = document.getElementById('validateTip');
+            if(warnings.length === 0) {
+                tipDiv.innerHTML = nodes.length === 0 ? '🌱 空白画布，从左侧拖拽开始搭建' : '✅ 校验通过！分支完整，逻辑清晰。';
+                tipDiv.style.background = "#e0f2e9";
+            } else {
+                tipDiv.innerHTML = warnings.slice(0,3).join(' ; ') + (warnings.length>3 ? ' …' : '');
+                tipDiv.style.background = "#ffe6d5";
+            }
+        }
+
+        // 保存作品
+        function saveToFile() {
+            const data = { nodes, edges, nextId };
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `cat_decision_tree_${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            alert("✅ 决策树已保存到本地！");
+        }
+
+        // 加载本地文件
+        function loadFromFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    nodes = data.nodes || [];
+                    edges = data.edges || [];
+                    nextId = data.nextId || Math.max(100, ...nodes.map(n=>n.id), ...edges.map(e=>e.id), 100);
+                    nodes.forEach(n => { n.width = NODE_W; n.height = NODE_H; });
+                    selectedNodeId = null;
+                    selectedEdgeId = null;
+                    redraw();
+                    validateTree();
+                    alert("📂 加载成功！");
+                } catch(err) { alert("文件解析失败"); }
+            };
+            reader.readAsText(file);
+        }
+
+        // ---------- 鼠标交互 (支持直线连线 + 拖拽) ----------
+        function handleMouseDown(e) {
+            const { x, y } = getCanvasCoords(e);
+            const hitNode = findNodeUnderPoint(x, y);
+            if(hitNode && isHitPort(hitNode, x, y)) {
+                // 开始连线
+                isLinking = true;
+                linkSourceId = hitNode.id;
+                tempLinkEndX = x;
+                tempLinkEndY = y;
+                e.preventDefault();
+                return;
+            }
+            if(hitNode) {
+                selectedNodeId = hitNode.id;
+                selectedEdgeId = null;
+                isDraggingNode = true;
+                dragTargetId = hitNode.id;
+                dragStartX = x - hitNode.x;
+                dragStartY = y - hitNode.y;
+                redraw();
+                e.preventDefault();
+                return;
+            }
+            const hitEdge = findEdgeUnderPoint(x, y);
+            if(hitEdge) {
+                selectedEdgeId = hitEdge.id;
+                selectedNodeId = null;
+                redraw();
+                e.preventDefault();
+                return;
+            }
+            selectedNodeId = null;
+            selectedEdgeId = null;
+            redraw();
+        }
+
+        function handleMouseMove(e) {
+            if(isDraggingNode && dragTargetId !== null) {
+                const { x, y } = getCanvasCoords(e);
+                const newX = x - dragStartX;
+                const newY = y - dragStartY;
+                const node = nodes.find(n => n.id === dragTargetId);
+                if(node) {
+                    node.x = Math.min(Math.max(0, newX), canvas.width - NODE_W);
+                    node.y = Math.min(Math.max(0, newY), canvas.height - NODE_H);
+                    redraw();
+                }
+                return;
+            }
+            if(isLinking && linkSourceId !== null) {
+                const { x, y } = getCanvasCoords(e);
+                tempLinkEndX = x;
+                tempLinkEndY = y;
+                redraw();
+            }
+        }
+
+        function handleMouseUp(e) {
+            if(isLinking && linkSourceId !== null) {
+                const { x, y } = getCanvasCoords(e);
+                const targetNode = findNodeUnderPoint(x, y);
+                if(targetNode && targetNode.id !== linkSourceId) {
+                    let label = prompt("✏️ 请输入此分支的标签", "是");
+                    if(label && label.trim()) {
+                        addEdge(linkSourceId, targetNode.id, label.trim());
+                        validateTree();
+                    } else if(label !== null && label === "") {
+                        addEdge(linkSourceId, targetNode.id, "分支");
+                        validateTree();
+                    }
+                }
+                isLinking = false;
+                linkSourceId = null;
+                redraw();
+            }
+            if(isDraggingNode) {
+                isDraggingNode = false;
+                dragTargetId = null;
+                redraw();
+            }
+        }
+
+        function handleContextMenu(e) {
+            e.preventDefault();
+            const { x, y } = getCanvasCoords(e);
+            const node = findNodeUnderPoint(x,y);
+            if(node) {
+                if(confirm(`删除节点“${node.text}”及其所有连线？`)) {
+                    deleteNodeById(node.id);
+                    validateTree();
+                }
+                return;
+            }
+            const edge = findEdgeUnderPoint(x,y);
+            if(edge) {
+                if(confirm(`删除连线“${edge.label}”`)) {
+                    deleteEdgeById(edge.id);
+                    validateTree();
+                }
+                return;
+            }
+        }
+
+        function handleKeyDown(e) {
+            if(e.key === 'Delete') {
+                if(selectedNodeId !== null) {
+                    deleteNodeById(selectedNodeId);
+                    selectedNodeId = null;
+                    validateTree();
+                } else if(selectedEdgeId !== null) {
+                    deleteEdgeById(selectedEdgeId);
+                    selectedEdgeId = null;
+                    validateTree();
+                }
+            }
+        }
+
+        // 拖拽添加组件
+        function setupDragAndDrop() {
+            const dragItems = document.querySelectorAll('.drag-item');
+            dragItems.forEach(item => {
+                item.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', JSON.stringify({
+                        type: item.dataset.type,
+                        text: item.dataset.text,
+                    }));
+                    e.dataTransfer.effectAllowed = 'copy';
+                });
+            });
+            canvas.addEventListener('dragover', (e) => e.preventDefault());
+            canvas.addEventListener('drop', (e) => {
+                e.preventDefault();
+                const rawData = e.dataTransfer.getData('text/plain');
+                if(!rawData) return;
+                const { type, text } = JSON.parse(rawData);
+                const { x, y } = getCanvasCoords(e);
+                addNode(x, y, text, type);
+                validateTree();
+                redraw();
+            });
+        }
+
+        // roundRect 辅助方法
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+                if (w < 2 * r) r = w / 2;
+                if (h < 2 * r) r = h / 2;
+                this.moveTo(x+r, y);
+                this.lineTo(x+w-r, y);
+                this.quadraticCurveTo(x+w, y, x+w, y+r);
+                this.lineTo(x+w, y+h-r);
+                this.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+                this.lineTo(x+r, y+h);
+                this.quadraticCurveTo(x, y+h, x, y+h-r);
+                this.lineTo(x, y+r);
+                this.quadraticCurveTo(x, y, x+r, y);
+                return this;
+            };
+        }
+
+        // 初始化: 空白画布，无示例
+        function initBlank() {
+            nodes = [];
+            edges = [];
+            nextId = 100;
+            selectedNodeId = null;
+            selectedEdgeId = null;
+            resizeCanvas();
+            setupDragAndDrop();
+            canvas.addEventListener('mousedown', handleMouseDown);
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+            canvas.addEventListener('contextmenu', handleContextMenu);
+            window.addEventListener('keydown', handleKeyDown);
+            document.getElementById('btnSave').addEventListener('click', saveToFile);
+            document.getElementById('btnValidate').addEventListener('click', () => validateTree());
+            const loadInput = document.createElement('input');
+            loadInput.type = 'file';
+            loadInput.accept = 'application/json';
+            document.getElementById('btnLoad').addEventListener('click', () => loadInput.click());
+            loadInput.addEventListener('change', (e) => {
+                if(e.target.files.length) loadFromFile(e.target.files[0]);
+                loadInput.value = '';
+            });
+            // 初始无任何示例，纯空白
+            redraw();
+            validateTree();
+        }
+
+        initBlank();
+    })();
+</script>
+</body>
+</html>
